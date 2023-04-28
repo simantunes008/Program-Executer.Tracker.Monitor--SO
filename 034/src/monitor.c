@@ -44,11 +44,13 @@ int main() {
             perror("open");
             exit(1);
         }
+
         /* Cria um pipe anónimo */
         if (pipe(fd_pipe) < 0) {
             perror("pipe");
             exit(1);
         }
+
         while((read(fd_DEFAULT, buf, 20)) > 0) {
             if (!strcmp(buf, "status")) {
                 if (fork() == 0) {
