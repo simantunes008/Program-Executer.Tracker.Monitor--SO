@@ -8,7 +8,7 @@ int fd_DEFAULT, fd_STATUS, fd_TERMINATED, fd_CS, fd_SC, fd_pipe[2], running_prog
 Client_info running[MAX_PROCESSES];
 
 void handler(int signal) {
-    if (signal == SIGINT) {
+    if (signal == SIGINT) { /* Fecha tudo em segurança quando recebe o sinal SIGINT */
         close(fd_DEFAULT);
         close(fd_STATUS);
         close(fd_CS);
@@ -29,7 +29,7 @@ void status() {
     fd_STATUS = open(FIFO_STATUS, O_WRONLY);
     for (int i = 0; i < running_programs; i++) {
         TEXEC = (now.tv_sec - running[i].start.tv_sec) * 1000 + (now.tv_usec - running[i].start.tv_usec) / 1000;
-        read_bytes = sprintf(status_buf, "%d %s %ld\n", running[i].pid, running[i].name, TEXEC);
+        read_bytes = sprintf(status_buf, "%d %s %ld ms\n", running[i].pid, running[i].name, TEXEC);
         write(fd_STATUS, status_buf, read_bytes);
     }
     close(fd_STATUS);

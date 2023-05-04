@@ -16,7 +16,7 @@
 #include <sys/stat.h>
 #define FIFO_DEFAULT "../tmp/DEFAULT" /* Pipe geral entre todos os clientes e o servidor */
 #define FIFO_STATUS "../tmp/STATUS" /* Pipe para enviar a lista do programas abertos */
-#define MAX_PROCESSES 100 /* Define o número máximo de processos que podem estar em execução simultaneamente */
+#define MAX_PROCESSES 1000 /* Define o número máximo de processos que podem estar em execução simultaneamente */
 
 typedef struct Client_info { /* Struct com as informações do Cliente a enviar para o Servidor */
     pid_t pid;
