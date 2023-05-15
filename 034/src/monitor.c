@@ -4,7 +4,7 @@
 
 #include "../includes/includes.h"
 
-int fd_DEFAULT, fd_STATUS, fd_TERMINATED, fd_CS, fd_SC, fd_pipe[2], running_programs = 0;
+int fd_DEFAULT, fd_STATUS, fd_TERMINATED, fd_CS, fd_SC, fd_LOGS, fd_pipe[2], running_programs = 0;
 Client_info running[MAX_PROCESSES];
 
 void handler(int signal) {
@@ -22,14 +22,14 @@ void handler(int signal) {
 
 void status() {
     long TEXEC;
-    char status_buf[256];
+    char status_buf[BUFFER_SIZE];
     struct timeval now;
     gettimeofday(&now, NULL);
     ssize_t read_bytes;
     fd_STATUS = open(FIFO_STATUS, O_WRONLY);
     for (int i = 0; i < running_programs; i++) {
         TEXEC = (now.tv_sec - running[i].start.tv_sec) * 1000 + (now.tv_usec - running[i].start.tv_usec) / 1000;
-        read_bytes = sprintf(status_buf, "%d %s %ld ms\n", running[i].pid, running[i].name, TEXEC);
+        read_bytes = snprintf(status_buf, BUFFER_SIZE, "%d %s %ld ms\n", running[i].pid, running[i].name, TEXEC);
         write(fd_STATUS, status_buf, read_bytes);
     }
     close(fd_STATUS);
@@ -56,13 +56,19 @@ void remove_client(pid_t pid) {
     }
 }
 
-int main() {
-    char * endptr, buf[20];
+int main(__attribute__((unused)) int argc, char * argv[]) {
+    char * endptr, buf[BUFFER_SIZE];
     signal(SIGINT, handler); // SIGINT é o sinal enviado quando se faz CTRL + C
 
     /* Cria os pipes definidos no ficheiro includes.h */
-    mkfifo(FIFO_DEFAULT, 0622); // R&W--W--W
-    mkfifo(FIFO_STATUS, 0622);
+    if (mkfifo(FIFO_DEFAULT, 0622) == -1) { // R&W--W--W
+        perror("mkfifo");
+        exit(1);
+    }
+    if (mkfifo(FIFO_STATUS, 0644) == -1) { // R&W--R--R
+        perror("mkfifo");
+        exit(1);
+    }
 
     while (1) {
         if ((fd_DEFAULT = open(FIFO_DEFAULT, O_RDONLY)) == -1) {
@@ -76,12 +82,9 @@ int main() {
             exit(1);
         }
 
-        while((read(fd_DEFAULT, buf, 20)) > 0) {
+        while((read(fd_DEFAULT, buf, BUFFER_SIZE)) > 0) {
             if (!strcmp(buf, "status")) {
-                if (fork() == 0) {
-                    status();
-                    exit(0);
-                }
+                status();
             }
             else {
                 if (in_running((pid_t) strtol(buf, &endptr, 10))) {
@@ -90,41 +93,57 @@ int main() {
                 else {
                     if (fork() == 0) {
                         Client_info client;
-                        char pid_buf[20], CS_path[256], SC_path[256];
+                        char pid_buf[BUFFER_SIZE], CS_path[PATH_SIZE], SC_path[PATH_SIZE], logs_path[PATH_SIZE];
 
                         /* Fecha o descritor de leitura */
                         close(fd_pipe[0]);
 
                         /* Formata as strings com o caminho para os pipes do cliente */
-                        sprintf(CS_path, "../tmp/CS%s", buf);
-                        sprintf(SC_path, "../tmp/SC%s", buf);
+                        snprintf(CS_path, PATH_SIZE, "../tmp/CS%s", buf);
+                        snprintf(SC_path, PATH_SIZE, "../tmp/SC%s", buf);
 
                         /* Abre o pipe para ler a informação do cliente */
-                        fd_CS = open(CS_path, O_RDONLY);
-                        while (read(fd_CS, &client, 56) > 0) {
-                            write(fd_pipe[1], &client, 56);
+                        if ((fd_CS = open(CS_path, O_RDONLY)) == -1) {
+                            perror("open");
+                            exit(1);
+                        }
+                        while (read(fd_CS, &client, sizeof(client)) > 0) {
+                            write(fd_pipe[1], &client, sizeof(client));
                         }
                         close(fd_CS);
 
                         /* Quando acaba de executar reenvia o pid */
-                        sprintf(pid_buf, "%d", client.pid);
-                        fd_TERMINATED = open(FIFO_DEFAULT, O_WRONLY);
-                        write(fd_TERMINATED, pid_buf, 20);
+                        snprintf(pid_buf, BUFFER_SIZE, "%d", client.pid);
+                        if ((fd_TERMINATED = open(FIFO_DEFAULT, O_WRONLY)) == -1) {
+                            perror("open");
+                            exit(1);
+                        }
+                        write(fd_TERMINATED, pid_buf, BUFFER_SIZE);
                         close(fd_TERMINATED);
 
                         /* Calcula o tempo de execução em milissegundos */
                         long TEXEC = (client.end.tv_sec - client.start.tv_sec) * 1000 + (client.end.tv_usec - client.start.tv_usec) / 1000;
 
                         /* Abre o pipe para escrever o tempo de execução */
-                        fd_SC = open(SC_path, O_WRONLY);
+                        if ((fd_SC = open(SC_path, O_WRONLY)) == -1) {
+                            perror("open");
+                            exit(1);
+                        }
                         write(fd_SC, &TEXEC, 8);
                         close(fd_SC);
+
+                        /* Cria um ficheiro binário para armazenar a informação do cliente */
+                        snprintf(logs_path, PATH_SIZE, "%s/%s.bin", argv[1], buf);
+                        fd_LOGS = open(logs_path, O_CREAT | O_WRONLY | O_APPEND, 0622);
+                        write(fd_LOGS, &client.name, 200);
+                        write(fd_LOGS, &TEXEC, 8);
+                        close(fd_LOGS);
                         exit(0);
                     }
                     if (running_programs < MAX_PROCESSES) {
                         Client_info client;
                         close(fd_pipe[1]);
-                        read(fd_pipe[0], &client, 56);
+                        read(fd_pipe[0], &client, sizeof(client));
                         running[running_programs++] = client;
                     }
                 }
