@@ -1,3 +1,0 @@
-/home/simao/LEI/2º Ano/2º Semestre/SO/TP_SO/034/cmake-build-debug/CMakeFiles/034.dir
-/home/simao/LEI/2º Ano/2º Semestre/SO/TP_SO/034/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/simao/LEI/2º Ano/2º Semestre/SO/TP_SO/034/cmake-build-debug/CMakeFiles/rebuild_cache.dir
