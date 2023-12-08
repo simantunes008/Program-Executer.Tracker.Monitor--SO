@@ -18,7 +18,7 @@ Programa escrito em C que consiste em dois executáveis, o monitor e o tracer, q
 Para executar programas e interagir com o sistema, utilize o tracer com o monitor aberto. Segue a seguir uma lista de comandos:
 
 ```bash
-./monitor /path # Incia o servidor com o caminho para a pasta onde vão ser armazenados os relatórios
+./monitor /path # Incia o servidor
 ```
 
 ```bash
