@@ -1,5 +1,5 @@
 # Sistemas Operativos
-Programa escrito em C que consiste em dois executáveis, o monitor e o tracer, que formam um ambiente de monitorização cliente-servidor para a execução de programas. O monitor atua como um servidor, monitorizando a execução de programas e gerando relatórios de status. Já o tracer atua como um cliente que pode iniciar a execução de programas simples ou pipelines, interagindo com o monitor através de FIFO's.
+Alguns guiões resolvidos e o trabalho prático, composto por dois executáveis, o monitor e o tracer, que criam um ambiente de monitorização cliente-servidor para a execução de programas. O monitor atua como um servidor, monitorizando a execução de programas e gerando relatórios de status. Já o tracer atua como um cliente que pode iniciar a execução de programas simples ou pipelines, interagindo com o monitor via FIFO's.
 
 ## Monitor
 É responsável por:
