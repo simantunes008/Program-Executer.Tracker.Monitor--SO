@@ -24,29 +24,49 @@ void listar_pessoas(int N) {
     int bytes_read = 0;
     char buffer[204];
     for (int i = 1; read(fd, pessoa, sizeof(Pessoa)) > 0 && i <= N; i++) {
-        bytes_read = snprintf(buffer, 204, "%s %d\n", pessoa -> nome, pessoa -> idade);
+        bytes_read = snprintf(buffer, 204, "%s %d\n", pessoa->nome, pessoa->idade);
         write(STDOUT_FILENO, buffer, bytes_read);
     }
     close(fd);
 }
 
-void altera_idade(char * nome, int idade) {
+void altera_idade(Pessoa * nova) {
     int fd = open("pessoas.bin", O_RDWR, 0644);
-    Pessoa * nova = malloc(sizeof(Pessoa));
+    if (fd < 0) return;
     Pessoa * antiga = malloc(sizeof(Pessoa));
-    strcpy(nova -> nome, nome);
-    nova -> idade = idade;
     while (read(fd, antiga, sizeof(Pessoa)) > 0) {
-        if (strcmp(antiga -> nome, nome) == 0) {
+        if (strcmp(antiga->nome, nova->nome) == 0) {
             lseek(fd, -204, SEEK_CUR);
             write(fd, nova, sizeof(Pessoa));
-            close(fd);
+            break;
         }
     }
     close(fd);
 }
 
 int main(int argc, char ** argv) {
+    if (argc < 2) {
+        write(STDOUT_FILENO, "Faltam argumentos!\n", 20);
+        return 1;
+    }
 
+    if (!strcmp(argv[1], "-i") && argc == 4) {
+        Pessoa * pessoa = malloc(sizeof(Pessoa));
+        strncpy(pessoa -> nome, argv[2], 200);
+        pessoa -> idade = atoi(argv[3]);
+        adiciona_pessoa(pessoa);
+
+    } else if (!strcmp(argv[1], "-l") && argc == 3) {
+        listar_pessoas(atoi(argv[2]));
+
+    } else if (!strcmp(argv[1], "-u") && argc == 4) {
+        Pessoa * pessoa = malloc(sizeof(Pessoa));
+        strncpy(pessoa -> nome, argv[2], 200);
+        pessoa -> idade = atoi(argv[3]);
+        altera_idade(pessoa);
+        
+    } else {
+        write(STDOUT_FILENO, "Opção de utilização inválida!\n", 35);
+    }
     return 0;
 }
