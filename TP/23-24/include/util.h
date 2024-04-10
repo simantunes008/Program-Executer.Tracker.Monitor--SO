@@ -18,11 +18,18 @@ typedef struct task {
     char prog[MAXBYTES];
 } Task;
 
-
+typedef struct entry {
+    pid_t pid;
+    long int texec;
+    char prog[MAXBYTES];
+} Entry;
 
 int mysystem(const char* command, char* file) {
     int res = 0, arg_count = 0;
     char *arg_values[MAX_ARGS];
+
+    char command_copy[MAXBYTES];
+    strcpy(command_copy, command);
 
     int fd = open(file, O_WRONLY | O_CREAT, 0777);
     if (fd == -1) {
@@ -36,7 +43,7 @@ int mysystem(const char* command, char* file) {
     dup2(fd, STDOUT_FILENO);
     dup2(fd, STDERR_FILENO);
 
-    char *token = strtok((char *)command, " ");
+    char *token = strtok(command_copy, " ");
     while (token != NULL && arg_count < MAX_ARGS - 1) {
         arg_values[arg_count++] = token;
         token = strtok(NULL, " ");
@@ -60,5 +67,3 @@ int mysystem(const char* command, char* file) {
 
     return res;
 }
-
-

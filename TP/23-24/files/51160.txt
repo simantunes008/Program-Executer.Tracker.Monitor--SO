@@ -1,9 +1,0 @@
-total 88
--rw-r--r--. 1 loki loki 84606 abr  8 11:51 23_24_EnunciadoTP.pdf
-drwxr-xr-x. 1 loki loki    36 abr 10 12:25 bin
-drwxr-xr-x. 1 loki loki    72 abr 10 12:27 files
-drwxr-xr-x. 1 loki loki    12 abr  8 23:19 include
--rw-r--r--. 1 loki loki   375 abr  8 12:12 Makefile
-drwxr-xr-x. 1 loki loki    44 abr 10 12:25 obj
-drwxr-xr-x. 1 loki loki    44 abr  8 12:15 src
-drwxr-xr-x. 1 loki loki    40 abr 10 12:27 tmp
