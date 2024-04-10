@@ -48,8 +48,6 @@ int main(int argc, char ** argv) {
         pid = wait(&status);
         if (WIFEXITED(status) && WEXITSTATUS(status) != 255) {
             printf("[father] child process: %d found it in line %d!\n", pid, WEXITSTATUS(status));
-        } else {
-            printf("[father] bad exit\n");
         }
     }
 
