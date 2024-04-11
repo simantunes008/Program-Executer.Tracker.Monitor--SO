@@ -119,18 +119,7 @@ int main(int argc, char ** argv) {
 
                 }
             } else {
-                printf("cona\n");
-
-                int fd3 = open(s_pid, O_WRONLY);
-                if (fd3 == -1) {
-	            	perror("Failed to open FIFO\n");
-	            }
-
-                write(fd3, &t.pid, sizeof(int));
-
-                close(fd3);
-                unlink(s_pid);
-
+                printf("cona"); 
             }
         } else if (!strcmp(t.cmd, "status")) {
             

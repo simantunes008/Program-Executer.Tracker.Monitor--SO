@@ -1,7 +1,5 @@
 #include "../include/util.h"
 
-int parallel_tasks = 0;
-
 void fWriter(int pipe) {
     int fd = open("history.bin", O_CREAT | O_APPEND | O_WRONLY, 0777);
 	if(fd == -1) {
@@ -87,50 +85,33 @@ int main(int argc, char ** argv) {
 	        sprintf(s_pid, "tmp/%d", t.pid);
             sprintf(out_file, "files/%d.txt", t.pid);
 
-            if (parallel_tasks < atoi(argv[2])) {
-                parallel_tasks++;
+            if (fork() == 0) {
+                gettimeofday(&start, NULL);
+                mysystem(t.prog, out_file);
+                gettimeofday(&end, NULL);
 
-                if (fork() == 0) {
-                    gettimeofday(&start, NULL);
-                    mysystem(t.prog, out_file);
-                    gettimeofday(&end, NULL);
+                long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
 
-                    long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
+                Entry e;
+                e.pid = t.pid;
+                e.texec = texec;
+                strcpy(e.prog, t.prog);
 
-                    Entry e;
-                    e.pid = t.pid;
-                    e.texec = texec;
-                    strcpy(e.prog, t.prog);
+                write(pipe_fd[1], &e, sizeof(e));
 
-                    write(pipe_fd[1], &e, sizeof(e));
-
-                    int fd2 = open(s_pid, O_WRONLY);
-                    if (fd2 == -1) {
-	                	perror("Failed to open FIFO\n");
-                        _exit(1);
-	                }
-
-                    write(fd2, &t.pid, sizeof(int));
-
-                    close(fd2);
-                    unlink(s_pid);
-
-                    _exit(0);
-
-                }
-            } else {
-                printf("cona\n");
-
-                int fd3 = open(s_pid, O_WRONLY);
-                if (fd3 == -1) {
+                int fd2 = open(s_pid, O_WRONLY);
+                if (fd2 == -1) {
 	            	perror("Failed to open FIFO\n");
+                    _exit(1);
 	            }
 
-                write(fd3, &t.pid, sizeof(int));
+                write(fd2, &t.pid, sizeof(int));
 
-                close(fd3);
+                close(fd2);
                 unlink(s_pid);
 
+                _exit(0);
+                
             }
         } else if (!strcmp(t.cmd, "status")) {
             

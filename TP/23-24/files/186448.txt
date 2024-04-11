@@ -119,8 +119,6 @@ int main(int argc, char ** argv) {
 
                 }
             } else {
-                printf("cona\n");
-
                 int fd3 = open(s_pid, O_WRONLY);
                 if (fd3 == -1) {
 	            	perror("Failed to open FIFO\n");
