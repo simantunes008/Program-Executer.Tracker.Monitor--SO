@@ -1,9 +1,0 @@
-23_24_EnunciadoTP.pdf
-bin
-files
-history.bin
-include
-Makefile
-obj
-src
-tmp

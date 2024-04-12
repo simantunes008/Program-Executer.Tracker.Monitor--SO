@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -g -Iinclude
-LDFLAGS =
+CFLAGS = -Wall -g -Iinclude `pkg-config --cflags glib-2.0`
+LDFLAGS = `pkg-config --libs glib-2.0` -lm
 
 all: folders orchestrator client
 

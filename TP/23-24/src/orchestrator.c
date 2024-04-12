@@ -1,6 +1,5 @@
 #include "../include/util.h"
-
-int parallel_tasks = 0;
+#include <glib.h>
 
 void fWriter(int pipe) {
     int fd = open("history.bin", O_CREAT | O_APPEND | O_WRONLY, 0777);
@@ -61,15 +60,18 @@ int main(int argc, char ** argv) {
         return 1;
 	}
 
+    GHashTable *tasks = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+
+    // ! Cuidado que bloqueia
     int fifo_fd1 = open("tmp/stats", O_RDONLY);
     if (fifo_fd1 == -1) {
-		perror("Failed to open FIFO\n");
+		perror("Failed to open stats FIFO\n");
         return 1;
 	}
 
     int fifo_fd2 = open("tmp/stats", O_WRONLY);
     if (fifo_fd2 == -1) {
-		perror("Failed to open FIFO\n");
+		perror("Failed to open stats FIFO\n");
         return 1;
 	}
 
@@ -79,6 +81,11 @@ int main(int argc, char ** argv) {
     while ((res = read(fifo_fd1, &t, sizeof(t))) > 0) {
     
         if (!strcmp(t.cmd, "execute")) {
+            if (g_hash_table_contains(tasks, GINT_TO_POINTER(t.pid))) {
+                g_hash_table_remove(tasks, GINT_TO_POINTER(t.pid));
+                continue;
+            }
+
             struct timeval start, end;
 
             char s_pid[20];
@@ -87,8 +94,9 @@ int main(int argc, char ** argv) {
 	        sprintf(s_pid, "tmp/%d", t.pid);
             sprintf(out_file, "files/%d.txt", t.pid);
 
-            if (parallel_tasks < atoi(argv[2])) {
-                parallel_tasks++;
+            if (g_hash_table_size(tasks) < atoi(argv[2])) {
+
+                g_hash_table_insert(tasks, GINT_TO_POINTER(t.pid), &t);
 
                 if (fork() == 0) {
                     gettimeofday(&start, NULL);
@@ -106,7 +114,7 @@ int main(int argc, char ** argv) {
 
                     int fd2 = open(s_pid, O_WRONLY);
                     if (fd2 == -1) {
-	                	perror("Failed to open FIFO\n");
+	                	perror("Failed to open s_pid FIFO\n");
                         _exit(1);
 	                }
 
@@ -115,15 +123,17 @@ int main(int argc, char ** argv) {
                     close(fd2);
                     unlink(s_pid);
 
+                    write(fifo_fd2, &t, sizeof(t));
+
                     _exit(0);
 
                 }
             } else {
-                printf("cona\n");
+                printf("Max number of processes reached\n");
 
                 int fd3 = open(s_pid, O_WRONLY);
                 if (fd3 == -1) {
-	            	perror("Failed to open FIFO\n");
+	            	perror("Failed to open s_pid FIFO\n");
 	            }
 
                 write(fd3, &t.pid, sizeof(int));
@@ -134,8 +144,8 @@ int main(int argc, char ** argv) {
             }
         } else if (!strcmp(t.cmd, "status")) {
             
-            int cona = open("history.bin", O_RDONLY, 0777);
-	        if(cona == -1) {
+            int sopa = open("history.bin", O_RDONLY, 0777);
+	        if(sopa == -1) {
                 perror("Failed to open file exec stats!\n");
             }
 
@@ -143,8 +153,8 @@ int main(int argc, char ** argv) {
 
 	        sprintf(s_pid, "tmp/%d", t.pid);
 
-            int pila = open(s_pid, O_WRONLY);
-            if (pila == -1) {
+            int massa = open(s_pid, O_WRONLY);
+            if (massa == -1) {
 	        	perror("Failed to open FIFO\n");
                 return 1;
 	        }
@@ -153,11 +163,11 @@ int main(int argc, char ** argv) {
             Entry e;
 
 
-            while ((res = read(cona, &e, sizeof(e))) > 0) {
-                write(pila, &e, sizeof(e));
+            while ((res = read(sopa, &e, sizeof(e))) > 0) {
+                write(massa, &e, sizeof(e));
             }
 
-            close(pila);
+            close(massa);
             unlink(s_pid);
         }
     }
