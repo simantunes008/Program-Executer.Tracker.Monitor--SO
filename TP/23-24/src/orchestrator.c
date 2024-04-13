@@ -1,5 +1,6 @@
 #include "../include/util.h"
 #include <glib.h>
+#define QUANTUM 100
 
 void fWriter(int pipe) {
     int fd = open("history.bin", O_CREAT | O_APPEND | O_WRONLY, 0777);
@@ -17,12 +18,76 @@ void fWriter(int pipe) {
 }
 
 
-int main(int argc, char ** argv) {
+void manager(int pipes[2], char* folder) {
 
-    if (argc == 1) {
-		printf("Invalid Input\n");
-		return 0;
+    mkdir(folder, 0777);
+
+    int pipe_fd1[2];
+
+    if (pipe(pipe_fd1) == -1){
+		perror("Failed to create pipe to file writer!\n");
+        return;
 	}
+
+    if (fork() == 0) {
+        close(pipe_fd1[1]);
+		fWriter(pipe_fd1[0]);
+    }
+
+    close(pipe_fd1[0]);
+
+    int res;
+    Task t;
+
+    while ((res = read(pipes[0], &t, sizeof(t))) > 0) {
+
+        t.time -= QUANTUM;
+
+        if (t.time <= 0) {
+
+            struct timeval start, end;
+
+            char s_pid[20];
+            char out_file[20];
+
+	        sprintf(s_pid, "tmp/%d", t.pid);
+            sprintf(out_file, "%s/%d.txt", folder, t.pid);
+
+            gettimeofday(&start, NULL);
+            mysystem(t.prog, out_file);
+            gettimeofday(&end, NULL);
+
+            long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
+
+            Entry e;
+            e.pid = t.pid;
+            e.texec = texec;
+            strcpy(e.prog, t.prog);
+
+            write(pipe_fd1[1], &e, sizeof(e));
+
+            int fd2 = open(s_pid, O_WRONLY);
+            if (fd2 == -1) {
+    	        perror("Failed to open s_pid FIFO\n");
+                _exit(1);
+    	    }
+
+            write(fd2, &t.pid, sizeof(int));
+
+            close(fd2);
+            unlink(s_pid);
+
+        } else {
+
+            write(pipes[1], &t, sizeof(t));
+
+        }
+        
+    }
+}
+
+
+int main(int argc, char ** argv) {
 
     if (mkfifo("tmp/stats", 0777) == -1) {
         if (errno != EEXIST) {
@@ -31,46 +96,39 @@ int main(int argc, char ** argv) {
         }
     }
 
-    int pipe_fd[2];
-    close(pipe_fd[0]);
+    int child_pipe[2];
 
-    if (pipe(pipe_fd) == -1){
+    if (pipe(child_pipe) == -1){
 		perror("Failed to create pipe to file writer!\n");
         return 1;
 	}
 
     if (argc == 2) {
-        mkdir("files", 0777); // ! Se não der o nome da pasta fica a 'files'
+        if (fork() == 0) {
+            manager(child_pipe, "files");
+        }
 
-		if (fork() == 0) {
-            close(pipe_fd[1]);
-			fWriter(pipe_fd[0]);
-
-		}
 	} else if (argc == 3) {
-        mkdir(argv[1], 0777);
+        if (fork() == 0) {
+            manager(child_pipe, argv[1]);
+        }
 
-		if (fork() == 0) {
-            close(pipe_fd[1]);
-		    fWriter(pipe_fd[0]);
-            
-		}
 	} else {
 		perror("Invalid command number!");  
         return 1;
 	}
 
-    GHashTable *tasks = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, NULL);
+    close(child_pipe[0]);
 
     // ! Cuidado que bloqueia
-    int fifo_fd1 = open("tmp/stats", O_RDONLY);
-    if (fifo_fd1 == -1) {
+    int fd1 = open("tmp/stats", O_RDONLY);
+    if (fd1 == -1) {
 		perror("Failed to open stats FIFO\n");
         return 1;
 	}
 
-    int fifo_fd2 = open("tmp/stats", O_WRONLY);
-    if (fifo_fd2 == -1) {
+    int fd2 = open("tmp/stats", O_WRONLY);
+    if (fd2 == -1) {
 		perror("Failed to open stats FIFO\n");
         return 1;
 	}
@@ -78,70 +136,11 @@ int main(int argc, char ** argv) {
     int res;
     Task t;
 
-    while ((res = read(fifo_fd1, &t, sizeof(t))) > 0) {
+    while ((res = read(fd1, &t, sizeof(t))) > 0) {
     
         if (!strcmp(t.cmd, "execute")) {
-            if (g_hash_table_contains(tasks, GINT_TO_POINTER(t.pid))) {
-                g_hash_table_remove(tasks, GINT_TO_POINTER(t.pid));
-                continue;
-            }
+            write(child_pipe[1], &t, sizeof(t));
 
-            struct timeval start, end;
-
-            char s_pid[20];
-            char out_file[20];
-
-	        sprintf(s_pid, "tmp/%d", t.pid);
-            sprintf(out_file, "files/%d.txt", t.pid);
-
-            if (g_hash_table_size(tasks) < atoi(argv[2])) {
-
-                g_hash_table_insert(tasks, GINT_TO_POINTER(t.pid), &t);
-
-                if (fork() == 0) {
-                    gettimeofday(&start, NULL);
-                    mysystem(t.prog, out_file);
-                    gettimeofday(&end, NULL);
-
-                    long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
-
-                    Entry e;
-                    e.pid = t.pid;
-                    e.texec = texec;
-                    strcpy(e.prog, t.prog);
-
-                    write(pipe_fd[1], &e, sizeof(e));
-
-                    int fd2 = open(s_pid, O_WRONLY);
-                    if (fd2 == -1) {
-	                	perror("Failed to open s_pid FIFO\n");
-                        _exit(1);
-	                }
-
-                    write(fd2, &t.pid, sizeof(int));
-
-                    close(fd2);
-                    unlink(s_pid);
-
-                    write(fifo_fd2, &t, sizeof(t));
-
-                    _exit(0);
-
-                }
-            } else {
-                printf("Max number of processes reached\n");
-
-                int fd3 = open(s_pid, O_WRONLY);
-                if (fd3 == -1) {
-	            	perror("Failed to open s_pid FIFO\n");
-	            }
-
-                write(fd3, &t.pid, sizeof(int));
-
-                close(fd3);
-                unlink(s_pid);
-
-            }
         } else if (!strcmp(t.cmd, "status")) {
             
             int sopa = open("history.bin", O_RDONLY, 0777);
