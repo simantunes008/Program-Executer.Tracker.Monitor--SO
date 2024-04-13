@@ -39,6 +39,8 @@ void manager(int pipes[2], char* folder) {
     int res;
     Task t;
 
+    GHashTable *pending_tasks = g_hash_table_new(g_direct_hash, g_direct_equal);
+
     while ((res = read(pipes[0], &t, sizeof(t))) > 0) {
 
         t.time -= QUANTUM;
@@ -66,23 +68,20 @@ void manager(int pipes[2], char* folder) {
 
             write(pipe_fd1[1], &e, sizeof(e));
 
-            int fd2 = open(s_pid, O_WRONLY);
-            if (fd2 == -1) {
-    	        perror("Failed to open s_pid FIFO\n");
-                _exit(1);
-    	    }
-
-            write(fd2, &t.pid, sizeof(int));
-
-            close(fd2);
             unlink(s_pid);
 
+            g_hash_table_remove(pending_tasks, GINT_TO_POINTER(t.pid));
+
         } else {
+
+            if (!g_hash_table_contains(pending_tasks, GINT_TO_POINTER(t.pid))) {
+                g_hash_table_insert(pending_tasks, GINT_TO_POINTER(t.pid), &t);
+            }
 
             write(pipes[1], &t, sizeof(t));
 
         }
-        
+
     }
 }
 
@@ -139,6 +138,19 @@ int main(int argc, char ** argv) {
     while ((res = read(fd1, &t, sizeof(t))) > 0) {
     
         if (!strcmp(t.cmd, "execute")) {
+            char s_pid[20];
+            sprintf(s_pid, "tmp/%d", t.pid);
+
+            int fd2 = open(s_pid, O_WRONLY);
+            if (fd2 == -1) {
+    	        perror("Failed to open s_pid FIFO\n");
+                _exit(1);
+    	    }
+
+            write(fd2, &t.pid, sizeof(int));
+
+            close(fd2);
+
             write(child_pipe[1], &t, sizeof(t));
 
         } else if (!strcmp(t.cmd, "status")) {
@@ -160,7 +172,6 @@ int main(int argc, char ** argv) {
 
             int res;
             Entry e;
-
 
             while ((res = read(sopa, &e, sizeof(e))) > 0) {
                 write(massa, &e, sizeof(e));
