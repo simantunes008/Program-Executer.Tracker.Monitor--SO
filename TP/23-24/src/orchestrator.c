@@ -39,11 +39,11 @@ void manager(int pipes[2], char* folder) {
     int res;
     Task t;
 
-    GHashTable *pending_tasks = g_hash_table_new(g_direct_hash, g_direct_equal);
-
     while ((res = read(pipes[0], &t, sizeof(t))) > 0) {
 
         t.time -= QUANTUM;
+
+        // TODO : Criar N filhos (argv[2]) para executar tarefas em paralelo
 
         if (t.time <= 0) {
 
@@ -68,15 +68,16 @@ void manager(int pipes[2], char* folder) {
 
             write(pipe_fd1[1], &e, sizeof(e));
 
+            int massa = open("tmp/stats", O_WRONLY); // ! Mudar o nome deste descritor
+            if (massa == -1) {
+	        	perror("Failed to open stats FIFO\n");
+	        }
+
+            write(massa, &t, sizeof(t));
+
             unlink(s_pid);
 
-            g_hash_table_remove(pending_tasks, GINT_TO_POINTER(t.pid));
-
         } else {
-
-            if (!g_hash_table_contains(pending_tasks, GINT_TO_POINTER(t.pid))) {
-                g_hash_table_insert(pending_tasks, GINT_TO_POINTER(t.pid), &t);
-            }
 
             write(pipes[1], &t, sizeof(t));
 
@@ -119,6 +120,8 @@ int main(int argc, char ** argv) {
 
     close(child_pipe[0]);
 
+    GHashTable *pending_tasks = g_hash_table_new(g_direct_hash, g_direct_equal);
+
     // ! Cuidado que bloqueia
     int fd1 = open("tmp/stats", O_RDONLY);
     if (fd1 == -1) {
@@ -138,14 +141,21 @@ int main(int argc, char ** argv) {
     while ((res = read(fd1, &t, sizeof(t))) > 0) {
     
         if (!strcmp(t.cmd, "execute")) {
+
+            if (g_hash_table_contains(pending_tasks, GINT_TO_POINTER(t.pid))) {
+                g_hash_table_remove(pending_tasks, GINT_TO_POINTER(t.pid));
+                continue;
+            }
+
             char s_pid[20];
             sprintf(s_pid, "tmp/%d", t.pid);
 
             int fd2 = open(s_pid, O_WRONLY);
             if (fd2 == -1) {
     	        perror("Failed to open s_pid FIFO\n");
-                _exit(1);
     	    }
+
+            g_hash_table_insert(pending_tasks, GINT_TO_POINTER(t.pid), &t);
 
             write(fd2, &t.pid, sizeof(int));
 
@@ -154,8 +164,10 @@ int main(int argc, char ** argv) {
             write(child_pipe[1], &t, sizeof(t));
 
         } else if (!strcmp(t.cmd, "status")) {
+
+            // TODO: Enviar também as tarefas na hashtable (se houver)
             
-            int sopa = open("history.bin", O_RDONLY, 0777);
+            int sopa = open("history.bin", O_RDONLY, 0777); // ! Mudar o nome deste descritor
 	        if(sopa == -1) {
                 perror("Failed to open file exec stats!\n");
             }
@@ -164,7 +176,7 @@ int main(int argc, char ** argv) {
 
 	        sprintf(s_pid, "tmp/%d", t.pid);
 
-            int massa = open(s_pid, O_WRONLY);
+            int massa = open(s_pid, O_WRONLY); // ! Mudar o nome deste descritor
             if (massa == -1) {
 	        	perror("Failed to open FIFO\n");
                 return 1;
