@@ -155,7 +155,13 @@ int main(int argc, char ** argv) {
     	        perror("Failed to open s_pid FIFO\n");
     	    }
 
-            g_hash_table_insert(pending_tasks, GINT_TO_POINTER(t.pid), &t);
+            Task *temp = malloc(sizeof(struct task));
+            temp -> pid = t.pid;
+            temp -> time = t.time;
+            strcpy(temp -> cmd, t.cmd);
+            strcpy(temp -> prog, t.prog);
+
+            g_hash_table_insert(pending_tasks, GINT_TO_POINTER(temp -> pid), temp);
 
             write(fd2, &t.pid, sizeof(int));
 
@@ -164,13 +170,6 @@ int main(int argc, char ** argv) {
             write(child_pipe[1], &t, sizeof(t));
 
         } else if (!strcmp(t.cmd, "status")) {
-
-            // TODO: Enviar também as tarefas na hashtable (se houver)
-            
-            int sopa = open("history.bin", O_RDONLY, 0777); // ! Mudar o nome deste descritor
-	        if(sopa == -1) {
-                perror("Failed to open file exec stats!\n");
-            }
 
             char s_pid[20];
 
@@ -181,6 +180,28 @@ int main(int argc, char ** argv) {
 	        	perror("Failed to open FIFO\n");
                 return 1;
 	        }
+
+            GHashTableIter iter;
+    	    gpointer key, value;
+
+            g_hash_table_iter_init(&iter, pending_tasks);
+
+            while (g_hash_table_iter_next(&iter, &key, &value)) {
+        	    Task *sopa = (Task *)value; // ! Mudar o nome desta variável
+
+                Entry ent;
+                ent.pid = sopa -> pid;
+                strcpy(ent.prog, sopa -> prog);
+                ent.texec = 0;
+
+                write(massa, &ent, sizeof(ent));
+    	    }
+
+            
+            int sopa = open("history.bin", O_RDONLY, 0777); // ! Mudar o nome deste descritor
+	        if(sopa == -1) {
+                perror("Failed to open file exec stats!\n");
+            }
 
             int res;
             Entry e;

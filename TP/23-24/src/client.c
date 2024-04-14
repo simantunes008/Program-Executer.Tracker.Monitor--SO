@@ -86,9 +86,14 @@ void status() {
     int res;
     Entry e;
 
-    printf("Completed\n");
+    // printf("Completed\n");
     while ((res = read(fd2, &e, sizeof(e))) > 0) {
-	    printf("%d %s %ld ms\n", e.pid, e.prog, e.texec);
+        if (e.texec) {
+            printf("%d %s %ld ms\n", e.pid, e.prog, e.texec);    
+        } else {
+            printf("%d %s\n", e.pid, e.prog);
+        }
+	    
     }
 
     close(fd2);
