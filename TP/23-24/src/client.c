@@ -116,7 +116,7 @@ int main(int argc, char ** argv) {
         }
     }
     
-    if (!strcmp(argv[1], "execute") && argc == 5) {
+    if (!strcmp(argv[1], "execute") && argc == 5 && atoi(argv[2]) > 0) {
         if (!strcmp(argv[3], "-u")) {
             execute_u(atoi(argv[2]), argv[4]);
 
