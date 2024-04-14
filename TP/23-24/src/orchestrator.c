@@ -155,13 +155,12 @@ int main(int argc, char ** argv) {
     	        perror("Failed to open s_pid FIFO\n");
     	    }
 
-            Task *temp = malloc(sizeof(struct task));
-            temp -> pid = t.pid;
-            temp -> time = t.time;
-            strcpy(temp -> cmd, t.cmd);
-            strcpy(temp -> prog, t.prog);
+            Entry *e = malloc(sizeof(struct entry));
+            e -> pid = t.pid;
+            e -> texec = 0;
+            strcpy(e -> prog, t.prog);
 
-            g_hash_table_insert(pending_tasks, GINT_TO_POINTER(temp -> pid), temp);
+            g_hash_table_insert(pending_tasks, GINT_TO_POINTER(e -> pid), e);
 
             write(fd2, &t.pid, sizeof(int));
 
@@ -187,16 +186,10 @@ int main(int argc, char ** argv) {
             g_hash_table_iter_init(&iter, pending_tasks);
 
             while (g_hash_table_iter_next(&iter, &key, &value)) {
-        	    Task *sopa = (Task *)value; // ! Mudar o nome desta variável
-
-                Entry ent;
-                ent.pid = sopa -> pid;
-                strcpy(ent.prog, sopa -> prog);
-                ent.texec = 0;
-
-                write(massa, &ent, sizeof(ent));
+        	    Entry *sopa = (Entry *)value;
+                write(massa, sopa, sizeof(struct entry));
     	    }
-
+    
             
             int sopa = open("history.bin", O_RDONLY, 0777); // ! Mudar o nome deste descritor
 	        if(sopa == -1) {
