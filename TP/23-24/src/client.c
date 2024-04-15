@@ -40,7 +40,7 @@ void execute(int time, char* prog, char* cmd) {
 
     read(fd2, &t_id, sizeof(int));
 
-    printf("TASK %d Received\n", t_id);
+    printf("TASK %d Received\n", t_id); // ! Mudar este printf para um write
 
     close(fd2);
 
@@ -89,9 +89,9 @@ void status() {
     // printf("Completed\n");
     while ((res = read(fd2, &e, sizeof(e))) > 0) {
         if (e.texec) {
-            printf("%d %s %ld ms\n", e.pid, e.prog, e.texec);    
+            printf("%d %s %ld ms\n", e.pid, e.prog, e.texec); // ! Mudar este printf para um write
         } else {
-            printf("%d %s\n", e.pid, e.prog);
+            printf("%d %s\n", e.pid, e.prog); // ! Mudar este printf para um write
         }
 	    
     }

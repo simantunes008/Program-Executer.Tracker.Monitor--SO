@@ -19,7 +19,7 @@ void fWriter(int pipe) {
 
 
 
-char** parsePipes(char *prog) {
+char **parsePipes(char *prog) {
     char *prog_copy = strdup(prog);
     char **array = malloc(20 * sizeof(char*));
     int i = 0;
@@ -38,12 +38,12 @@ char** parsePipes(char *prog) {
     return array;
 }
 
-char*** parseArgs(char** cmd){
+char ***parseArgs(char **prog){
     char ***matriz = malloc(20 * sizeof(char**));
     int i = 0;
     
-    while (cmd[i] != NULL) {
-        char *str = strdup(cmd[i]);
+    while (prog[i] != NULL) {
+        char *str = strdup(prog[i]);
         char *aux;
         int j = 0;
         
@@ -74,7 +74,7 @@ int pipeline(char ***cmd, char* file) {
     int pipes[len - 1][2];
     int status;
 
-    int fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0777);
+    int fd = open(file, O_WRONLY | O_CREAT, 0777);
     if (fd == -1) {
         perror("Failed to create output file");
         return -1;
@@ -140,10 +140,6 @@ int pipeline(char ***cmd, char* file) {
     }
 
     close(fd);
-
-    for (int j = 0; j < len; j++) {
-        wait(NULL);
-    }
 
     dup2(stdout_backup, STDOUT_FILENO);
     dup2(stderr_backup, STDERR_FILENO);
