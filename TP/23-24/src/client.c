@@ -1,6 +1,6 @@
 #include "../include/util.h"
 
-void execute_u(int time, char* prog) {
+void execute(int time, char* prog, char* cmd) {
     int fd1 = open("tmp/stats", O_WRONLY);
     if (fd1 == -1) {
 		perror("Failed to open FIFO\n");
@@ -12,7 +12,7 @@ void execute_u(int time, char* prog) {
     Task t;
     t.pid = pid;
     t.time = time;
-    strcpy(t.cmd, "execute");
+    strcpy(t.cmd, cmd);
     strcpy(t.prog, prog);
 
     char s_pid[20];
@@ -117,15 +117,13 @@ int main(int argc, char ** argv) {
     }
     
     if (!strcmp(argv[1], "execute") && argc == 5 && atoi(argv[2]) > 0) {
-        if (!strcmp(argv[3], "-u")) {
-            execute_u(atoi(argv[2]), argv[4]);
+        char cmd[20];
+        sprintf(cmd, "%s %s", argv[1], argv[3]);
+        
+        if (!strcmp(argv[3], "-u") || !strcmp(argv[3], "-p")) {
+            execute(atoi(argv[2]), argv[4], cmd);
 
-
-        } else if (!strcmp(argv[3], "-p")) {
-			// TODO: Execução em pipeline (é só copiar a do ano passado)
-            
-
-		} else {
+        } else {
             printf("Invalid option\n");
         }
 

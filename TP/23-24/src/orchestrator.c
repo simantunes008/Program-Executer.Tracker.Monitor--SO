@@ -18,7 +18,145 @@ void fWriter(int pipe) {
 }
 
 
-void manager(int pipes[2], char* folder) {
+
+char** parsePipes(char *prog) {
+    char *prog_copy = strdup(prog);
+    char **array = malloc(20 * sizeof(char*));
+    int i = 0;
+    char *aux;
+
+    while ((aux = strsep(&prog_copy, "|")) != NULL) {
+        if (i != 0) {
+            array[i++] = aux + 1; // ! Para não copiar os espaços
+        } else {
+            array[i++] = aux;
+        }
+    }
+
+    array[i] = NULL;
+    free(prog_copy);
+    return array;
+}
+
+char*** parseArgs(char** cmd){
+    char ***matriz = malloc(20 * sizeof(char**));
+    int i = 0;
+    
+    while (cmd[i] != NULL) {
+        char *str = strdup(cmd[i]);
+        char *aux;
+        int j = 0;
+        
+        matriz[i] = malloc(20 * sizeof(char*));
+        
+        while ((aux = strsep(&str, " ")) != NULL) {
+            if(strcmp(aux, "") != 0){
+				matriz[i][j++] = aux;
+			}
+        }
+
+        matriz[i][j] = NULL;
+        free(aux);
+        i++;
+    }
+    matriz[i] = NULL;
+    return matriz;
+}
+
+
+
+int pipeline(char ***cmd, char* file) {
+    int len = 0;
+    while (cmd[len] != NULL) {
+        len++;
+    }
+
+    int pipes[len - 1][2];
+    int status;
+
+    int fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0777);
+    if (fd == -1) {
+        perror("Failed to create output file");
+        return -1;
+    }
+
+    int stdout_backup = dup(STDOUT_FILENO);
+    int stderr_backup = dup(STDERR_FILENO);
+
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+
+    for (int i = 0; i < len; i++) {
+        if (i == 0) {
+            pipe(pipes[i]);
+            if (fork() == 0) {
+                close(pipes[i][0]);
+                dup2(pipes[i][1], STDOUT_FILENO);
+                close(pipes[i][1]);
+                execvp(cmd[i][0], cmd[i]);
+                perror("Failed to Execute Command!");
+                _exit(-1);
+            } else {
+                close(pipes[i][1]);
+                wait(&status);
+                if (WEXITSTATUS(status) == 255) {
+                    return 1;
+                }
+            }
+        } else if (i == len - 1) {
+            if (fork() == 0) {
+                dup2(pipes[i - 1][0], STDIN_FILENO);
+                close(pipes[i - 1][0]);
+                execvp(cmd[i][0], cmd[i]);
+                perror("Failed to Execute Command!");
+                _exit(-1);
+            } else {
+                close(pipes[i - 1][0]);
+                wait(&status);
+                if (WEXITSTATUS(status) == 255) {
+                    return 1;
+                }
+            }
+        } else {
+            pipe(pipes[i]);
+            if (fork() == 0) {
+                close(pipes[i][0]);
+                dup2(pipes[i - 1][0], STDIN_FILENO);
+                close(pipes[i - 1][0]);
+                dup2(pipes[i][1], STDOUT_FILENO);
+                close(pipes[i][1]);
+                execvp(cmd[i][0], cmd[i]);
+                perror("Failed to Execute Command!");
+                _exit(-1);
+            } else {
+                close(pipes[i - 1][0]);
+                close(pipes[i][1]);
+                wait(&status);
+                if (WEXITSTATUS(status) == 255) {
+                    return 1;
+                }
+            }
+        }
+    }
+
+    close(fd);
+
+    for (int j = 0; j < len; j++) {
+        wait(NULL);
+    }
+
+    dup2(stdout_backup, STDOUT_FILENO);
+    dup2(stderr_backup, STDERR_FILENO);
+    close(stdout_backup);
+    close(stderr_backup);
+
+    return 0;
+}
+
+
+
+
+void manager(int pipes[2], char* folder, int max_parallel_tasks) {
 
     mkdir(folder, 0777);
 
@@ -49,15 +187,20 @@ void manager(int pipes[2], char* folder) {
 
             struct timeval start, end;
 
-            char s_pid[20];
             char out_file[20];
-
-	        sprintf(s_pid, "tmp/%d", t.pid);
             sprintf(out_file, "%s/%d.txt", folder, t.pid);
 
-            gettimeofday(&start, NULL);
-            mysystem(t.prog, out_file);
-            gettimeofday(&end, NULL);
+            if (!strcmp(t.cmd, "execute -u")) {
+                gettimeofday(&start, NULL);
+                mysystem(t.prog, out_file);
+                gettimeofday(&end, NULL);
+            } else if (!strcmp(t.cmd, "execute -p")) {
+                gettimeofday(&start, NULL);
+                char **pipes = parsePipes(t.prog);
+                char ***commands = parseArgs(pipes);
+                pipeline(commands, out_file);
+                gettimeofday(&end, NULL);
+            }
 
             long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
 
@@ -74,8 +217,6 @@ void manager(int pipes[2], char* folder) {
 	        }
 
             write(massa, &t, sizeof(t));
-
-            unlink(s_pid);
 
         } else {
 
@@ -103,20 +244,16 @@ int main(int argc, char ** argv) {
         return 1;
 	}
 
-    if (argc == 2) {
-        if (fork() == 0) {
-            manager(child_pipe, "files");
-        }
+    int parallel_tasks = atoi(argv[2]);
 
-	} else if (argc == 3) {
+    if (argc == 3 && parallel_tasks > 0) {
         if (fork() == 0) {
-            manager(child_pipe, argv[1]);
-        }
+            manager(child_pipe, argv[1], parallel_tasks);
 
-	} else {
-		perror("Invalid command number!");  
-        return 1;
-	}
+        }
+    } else {
+        printf("Invalid command name or count.\n");
+    }
 
     close(child_pipe[0]);
 
@@ -140,7 +277,7 @@ int main(int argc, char ** argv) {
 
     while ((res = read(fd1, &t, sizeof(t))) > 0) {
     
-        if (!strcmp(t.cmd, "execute")) {
+        if (!strcmp(t.cmd, "execute -u") || !strcmp(t.cmd, "execute -p")) {
 
             if (g_hash_table_contains(pending_tasks, GINT_TO_POINTER(t.pid))) {
                 g_hash_table_remove(pending_tasks, GINT_TO_POINTER(t.pid));
@@ -165,6 +302,7 @@ int main(int argc, char ** argv) {
             write(fd2, &t.pid, sizeof(int));
 
             close(fd2);
+            unlink(s_pid);
 
             write(child_pipe[1], &t, sizeof(t));
 
@@ -189,7 +327,6 @@ int main(int argc, char ** argv) {
         	    Entry *sopa = (Entry *)value;
                 write(massa, sopa, sizeof(struct entry));
     	    }
-    
             
             int sopa = open("history.bin", O_RDONLY, 0777); // ! Mudar o nome deste descritor
 	        if(sopa == -1) {
