@@ -59,9 +59,7 @@ void manager(int pipes[2], char* folder, int max_parallel_tasks) {
             } 
             if (!strcmp(t.cmd, "execute -p")) {
                 gettimeofday(&start, NULL);
-                char **pipes = parsePipes(t.prog);
-                char ***commands = parseArgs(pipes);
-                pipeline(commands, out_file);
+                pipeline(t.prog, out_file);
                 gettimeofday(&end, NULL);
             }
 

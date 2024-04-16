@@ -9,7 +9,8 @@
 #include <errno.h>
 #include <string.h>
 #define MAXBYTES 300
-#define MAX_ARGS 4
+#define MAX_ARGS 20  // ! Este valor é meio duvidoso
+#define MAX_PIPES 20 // ! Este valor é meio duvidoso
 
 typedef struct task {
     pid_t pid;
@@ -24,18 +25,18 @@ typedef struct entry {
     char prog[MAXBYTES];
 } Entry;
 
-int mysystem(const char* command, char* file) {
-    char **array = malloc(20 * sizeof(char*));
-    char *command_copy = strdup(command);
-    char *aux;
+int mysystem(char* prog, char* file) {
+    char **array = malloc(MAX_ARGS * sizeof(char*));
+    char *prog_copy = strdup(prog);
+    char *temp;
     int i = 0;
 
-    while ((aux = strsep(&command_copy, " ")) != NULL) {
-        array[i++] = aux;
+    while ((temp = strsep(&prog_copy, " ")) != NULL) {
+        array[i++] = temp;
     }
 
     array[i] = NULL;
-    free(command_copy);
+    free(prog_copy);
 
     int res = 0;
 
@@ -53,7 +54,6 @@ int mysystem(const char* command, char* file) {
 
     if (fork() == 0) {
         execvp(array[0], array);
-        perror("Failed to Execute Command!");
         _exit(1);
     }
 
@@ -66,45 +66,46 @@ int mysystem(const char* command, char* file) {
 
     wait(&res);
     if (WIFEXITED(res)) {
-        return 1;
+        return -1;
     }
 
     return 0;
 }
 
 char **parsePipes(char *prog) {
-    char **array = malloc(20 * sizeof(char*));
+    char **array = malloc(MAX_PIPES * sizeof(char*));
     char *prog_copy = strdup(prog);
-    char *aux;
+    char *temp;
     int i = 0;
 
-    while ((aux = strsep(&prog_copy, "|")) != NULL) {
+    while ((temp = strsep(&prog_copy, "|")) != NULL) {
         if (i != 0) {
-            array[i++] = aux + 1; // ! Para não copiar os espaços
+            array[i++] = temp + 1; // ! Para não copiar os espaços
         } else {
-            array[i++] = aux;
+            array[i++] = temp;
         }
     }
 
     array[i] = NULL;
     free(prog_copy);
+
     return array;
 }
 
 char ***parseArgs(char **prog){
-    char ***matriz = malloc(20 * sizeof(char **));
+    char ***matriz = malloc(MAX_PIPES * sizeof(char **));
     int i = 0;
     
     while (prog[i] != NULL) {
         char *prog_copy = strdup(prog[i]);
-        char *aux;
+        char *temp;
         int j = 0;
         
-        matriz[i] = malloc(20 * sizeof(char *));
+        matriz[i] = malloc(MAX_ARGS * sizeof(char *));
         
-        while ((aux = strsep(&prog_copy, " ")) != NULL) {
-            if (strcmp(aux, "") != 0) {
-				matriz[i][j++] = aux;
+        while ((temp = strsep(&prog_copy, " ")) != NULL) {
+            if (strcmp(temp, "") != 0) {
+				matriz[i][j++] = temp;
 			}
         }
 
@@ -113,10 +114,14 @@ char ***parseArgs(char **prog){
         i++;
     }
     matriz[i] = NULL;
+
     return matriz;
 }
 
-int pipeline(char ***cmd, char* file) {
+int pipeline(char *prog, char* file) {
+    char **sopa = parsePipes(prog);
+    char ***cmd = parseArgs(sopa);
+
     int len = 0;
     while (cmd[len] != NULL) {
         len++;
@@ -145,13 +150,12 @@ int pipeline(char ***cmd, char* file) {
                 dup2(pipes[i][1], STDOUT_FILENO);
                 close(pipes[i][1]);
                 execvp(cmd[i][0], cmd[i]);
-                perror("Failed to Execute Command!");
                 _exit(1);
             } else {
                 close(pipes[i][1]);
                 wait(&res);
                 if (WEXITSTATUS(res)) {
-                    return 1;
+                    return -1;
                 }
             }
         } else if (i == len - 1) {
@@ -159,13 +163,12 @@ int pipeline(char ***cmd, char* file) {
                 dup2(pipes[i - 1][0], STDIN_FILENO);
                 close(pipes[i - 1][0]);
                 execvp(cmd[i][0], cmd[i]);
-                perror("Failed to Execute Command!");
                 _exit(1);
             } else {
                 close(pipes[i - 1][0]);
                 wait(&res);
                 if (WEXITSTATUS(res)) {
-                    return 1;
+                    return -1;
                 }
             }
         } else {
@@ -177,14 +180,13 @@ int pipeline(char ***cmd, char* file) {
                 dup2(pipes[i][1], STDOUT_FILENO);
                 close(pipes[i][1]);
                 execvp(cmd[i][0], cmd[i]);
-                perror("Failed to Execute Command!");
                 _exit(1);
             } else {
                 close(pipes[i - 1][0]);
                 close(pipes[i][1]);
                 wait(&res);
                 if (WEXITSTATUS(res)) {
-                    return 1;
+                    return -1;
                 }
             }
         }
