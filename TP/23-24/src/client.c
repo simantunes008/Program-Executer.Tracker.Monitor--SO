@@ -3,7 +3,7 @@
 void execute(int time, char* prog, char* cmd) {
     int fd1 = open("tmp/stats", O_WRONLY);
     if (fd1 == -1) {
-		perror("Failed to open FIFO\n");
+		perror("Failed to open FIFO stats\n");
         return;
 	}
     
@@ -14,15 +14,13 @@ void execute(int time, char* prog, char* cmd) {
     t.time = time;
     strcpy(t.cmd, cmd);
     strcpy(t.prog, prog);
-    t.finished = false;
 
     char s_pid[20];
-
 	sprintf(s_pid, "tmp/%d", pid);
 
     if (mkfifo(s_pid, 0777) == -1) {
         if (errno != EEXIST) {
-            perror("Could not create fifo file\n");
+            perror("Could not create FIFO s_pid\n");
             return;
         }
     }
@@ -33,15 +31,17 @@ void execute(int time, char* prog, char* cmd) {
 
     int fd2 = open(s_pid, O_RDONLY);
     if (fd2 == -1) {
-		perror("Failed to open FIFO\n");
+		perror("Failed to open FIFO stats\n");
         return;
 	}
 
-    int t_id;
+    int task_id;
 
-    read(fd2, &t_id, sizeof(int));
+    read(fd2, &task_id, sizeof(int));
 
-    printf("TASK %d Received\n", t_id); // ! Mudar este printf para um write
+    char info[20];
+	sprintf(info, "TASK %d Received\n", task_id);
+    write(STDOUT_FILENO, info, 20);
 
     close(fd2);
 
@@ -57,8 +57,14 @@ void status() {
 	}
 
     pid_t pid = getpid();
-	char s_pid[20];
 
+    Task t;
+    t.pid = pid;
+    t.time = 0;
+    strcpy(t.cmd, "status");
+    strcpy(t.prog, "");
+
+    char s_pid[20];
 	sprintf(s_pid, "tmp/%d", pid);
 
     if (mkfifo(s_pid, 0777) == -1) {
@@ -67,13 +73,6 @@ void status() {
             return;
         }
     }
-
-    Task t;
-    t.pid = pid;
-    t.time = 0;
-    strcpy(t.cmd, "status");
-    strcpy(t.prog, "");
-    t.finished = false;
 
     write(fd1, &t, sizeof(t));
 

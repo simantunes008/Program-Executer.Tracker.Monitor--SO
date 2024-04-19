@@ -18,6 +18,48 @@ void fWriter(int pipe) {
 }
 
 
+void executer(int pipe, int pipe2, char* folder) {
+    int res;
+    Task t;
+
+    while ((res = read(pipe, &t, sizeof(t))) > 0) {
+
+        struct timeval start, end;
+
+        char out_file[20];
+        sprintf(out_file, "%s/%d.txt", folder, t.pid);
+
+        if (!strcmp(t.cmd, "execute -u")) {
+            gettimeofday(&start, NULL);
+            mysystem(t.prog, out_file);
+            gettimeofday(&end, NULL);
+        } 
+        if (!strcmp(t.cmd, "execute -p")) {
+            gettimeofday(&start, NULL);
+            pipeline(t.prog, out_file);
+            gettimeofday(&end, NULL);
+        }
+
+        long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
+
+        Entry e;
+        e.pid = t.pid;
+        e.texec = texec;
+        strcpy(e.prog, t.prog);
+
+        write(pipe2, &e, sizeof(e));
+
+        int massa = open("tmp/stats", O_WRONLY); // ! Mudar o nome deste descritor
+        if (massa == -1) {
+	    	perror("Failed to open stats FIFO\n");
+	    }
+
+        write(massa, &t, sizeof(t));
+
+    }
+}
+
+
 void manager(int pipes[2], char* folder, int max_parallel_tasks) {
 
     mkdir(folder, 0777);
@@ -35,62 +77,33 @@ void manager(int pipes[2], char* folder, int max_parallel_tasks) {
 		fWriter(pipe_fd1[0]);
     }
 
+    int child_pipes[max_parallel_tasks][2];
+
+    for (int i = 0; i < max_parallel_tasks; i++) {
+        if (pipe(child_pipes[i]) == -1) {
+            perror("Failed to create pipe for child process!\n");
+            return;
+        }
+
+        if (fork() == 0) {
+            close(child_pipes[i][1]);
+            executer(child_pipes[i][0], pipe_fd1[1], folder);
+        }
+
+        close(child_pipes[i][0]);
+    }
+
     close(pipe_fd1[0]);
 
     int res;
     Task t;
 
     while ((res = read(pipes[0], &t, sizeof(t))) > 0) {
-
         t.time -= QUANTUM;
 
-        if (t.finished) {
-            i--;
-            continue;
-        }
+        if (t.time <= 0) {
+            write(child_pipes[i++%max_parallel_tasks][1], &t, sizeof(t));
 
-        if (t.time <= 0 && i < max_parallel_tasks) {
-            i++;
-
-            // TODO: Adcionar prioridade às tarefas que estão à espera de um filho
-
-            if (fork() == 0) {
-                struct timeval start, end;
-
-                char out_file[20];
-                sprintf(out_file, "%s/%d.txt", folder, t.pid);
-
-                if (!strcmp(t.cmd, "execute -u")) {
-                    gettimeofday(&start, NULL);
-                    mysystem(t.prog, out_file);
-                    gettimeofday(&end, NULL);
-                } 
-                if (!strcmp(t.cmd, "execute -p")) {
-                    gettimeofday(&start, NULL);
-                    pipeline(t.prog, out_file);
-                    gettimeofday(&end, NULL);
-                }
-
-                long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
-
-                Entry e;
-                e.pid = t.pid;
-                e.texec = texec;
-                strcpy(e.prog, t.prog);
-
-                write(pipe_fd1[1], &e, sizeof(e));
-
-                int massa = open("tmp/stats", O_WRONLY); // ! Mudar o nome deste descritor
-                if (massa == -1) {
-    	        	perror("Failed to open stats FIFO\n");
-    	        }
-
-                t.finished = true;
-
-                write(massa, &t, sizeof(t));
-                write(pipes[1], &t, sizeof(t));
-            }
-            
         } else {
             write(pipes[1], &t, sizeof(t));
 
