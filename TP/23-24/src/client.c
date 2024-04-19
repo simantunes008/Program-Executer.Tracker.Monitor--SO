@@ -14,6 +14,7 @@ void execute(int time, char* prog, char* cmd) {
     t.time = time;
     strcpy(t.cmd, cmd);
     strcpy(t.prog, prog);
+    t.finished = false;
 
     char s_pid[20];
 
@@ -72,6 +73,7 @@ void status() {
     t.time = 0;
     strcpy(t.cmd, "status");
     strcpy(t.prog, "");
+    t.finished = false;
 
     write(fd1, &t, sizeof(t));
 

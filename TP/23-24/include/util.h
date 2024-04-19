@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 #define MAXBYTES 300
 #define MAX_ARGS 20  // ! Este valor é meio duvidoso
 #define MAX_PIPES 20 // ! Este valor é meio duvidoso
@@ -17,6 +18,7 @@ typedef struct task {
     int time;
     char cmd[MAXBYTES];
     char prog[MAXBYTES];
+    bool finished;
 } Task;
 
 typedef struct entry {

@@ -23,6 +23,7 @@ void manager(int pipes[2], char* folder, int max_parallel_tasks) {
     mkdir(folder, 0777);
 
     int pipe_fd1[2];
+    int i = 0;
 
     if (pipe(pipe_fd1) == -1){
 		perror("Failed to create pipe to file writer!\n");
@@ -43,48 +44,57 @@ void manager(int pipes[2], char* folder, int max_parallel_tasks) {
 
         t.time -= QUANTUM;
 
-        // TODO : Criar N filhos (argv[2]) para executar tarefas em paralelo
+        if (t.finished) {
+            i--;
+            continue;
+        }
 
-        if (t.time <= 0) {
+        if (t.time <= 0 && i < max_parallel_tasks) {
+            i++;
 
-            struct timeval start, end;
+            // TODO: Adcionar prioridade às tarefas que estão à espera de um filho
 
-            char out_file[20];
-            sprintf(out_file, "%s/%d.txt", folder, t.pid);
+            if (fork() == 0) {
+                struct timeval start, end;
 
-            if (!strcmp(t.cmd, "execute -u")) {
-                gettimeofday(&start, NULL);
-                mysystem(t.prog, out_file);
-                gettimeofday(&end, NULL);
-            } 
-            if (!strcmp(t.cmd, "execute -p")) {
-                gettimeofday(&start, NULL);
-                pipeline(t.prog, out_file);
-                gettimeofday(&end, NULL);
+                char out_file[20];
+                sprintf(out_file, "%s/%d.txt", folder, t.pid);
+
+                if (!strcmp(t.cmd, "execute -u")) {
+                    gettimeofday(&start, NULL);
+                    mysystem(t.prog, out_file);
+                    gettimeofday(&end, NULL);
+                } 
+                if (!strcmp(t.cmd, "execute -p")) {
+                    gettimeofday(&start, NULL);
+                    pipeline(t.prog, out_file);
+                    gettimeofday(&end, NULL);
+                }
+
+                long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
+
+                Entry e;
+                e.pid = t.pid;
+                e.texec = texec;
+                strcpy(e.prog, t.prog);
+
+                write(pipe_fd1[1], &e, sizeof(e));
+
+                int massa = open("tmp/stats", O_WRONLY); // ! Mudar o nome deste descritor
+                if (massa == -1) {
+    	        	perror("Failed to open stats FIFO\n");
+    	        }
+
+                t.finished = true;
+
+                write(massa, &t, sizeof(t));
+                write(pipes[1], &t, sizeof(t));
             }
-
-            long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
-
-            Entry e;
-            e.pid = t.pid;
-            e.texec = texec;
-            strcpy(e.prog, t.prog);
-
-            write(pipe_fd1[1], &e, sizeof(e));
-
-            int massa = open("tmp/stats", O_WRONLY); // ! Mudar o nome deste descritor
-            if (massa == -1) {
-	        	perror("Failed to open stats FIFO\n");
-	        }
-
-            write(massa, &t, sizeof(t));
-
+            
         } else {
-
             write(pipes[1], &t, sizeof(t));
 
         }
-
     }
 }
 
