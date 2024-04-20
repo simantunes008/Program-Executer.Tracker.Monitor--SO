@@ -65,7 +65,6 @@ void manager(int pipes[2], char* folder, int max_parallel_tasks) {
     mkdir(folder, 0777);
 
     int pipe_fd1[2];
-    int i = 0;
 
     if (pipe(pipe_fd1) == -1){
 		perror("Failed to create pipe to file writer!\n");
@@ -77,22 +76,21 @@ void manager(int pipes[2], char* folder, int max_parallel_tasks) {
 		fWriter(pipe_fd1[0]);
     }
 
-    int child_pipes[max_parallel_tasks][2];
+    int child_pipe[2];
 
-    for (int i = 0; i < max_parallel_tasks; i++) {
-        if (pipe(child_pipes[i]) == -1) {
-            perror("Failed to create pipe for child process!\n");
-            return;
-        }
-
-        if (fork() == 0) {
-            close(child_pipes[i][1]);
-            executer(child_pipes[i][0], pipe_fd1[1], folder);
-        }
-
-        close(child_pipes[i][0]);
+    if (pipe(child_pipe) == -1) {
+        perror("Failed to create pipe for child processes!\n");
+        return;
     }
 
+    for (int i = 0; i < max_parallel_tasks; i++) {
+        if (fork() == 0) {
+            close(child_pipe[1]);
+            executer(child_pipe[0], pipe_fd1[1], folder);
+        }
+    }
+
+    close(child_pipe[0]);
     close(pipe_fd1[0]);
 
     int res;
@@ -102,7 +100,7 @@ void manager(int pipes[2], char* folder, int max_parallel_tasks) {
         t.time -= QUANTUM;
 
         if (t.time <= 0) {
-            write(child_pipes[i++%max_parallel_tasks][1], &t, sizeof(t));
+            write(child_pipe[1], &t, sizeof(t));
 
         } else {
             write(pipes[1], &t, sizeof(t));
