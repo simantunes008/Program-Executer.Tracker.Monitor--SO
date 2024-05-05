@@ -9,13 +9,13 @@
 #include <errno.h>
 #include <string.h>
 #define MAXBYTES 300
-#define MAX_ARGS 20  // ! Este valor é meio duvidoso
-#define MAX_PIPES 20 // ! Este valor é meio duvidoso
+#define MAXARGS  20
+#define MAXPIPES 20
 
 typedef struct task {
     pid_t pid;
     int time;
-    char cmd[MAXBYTES];
+    char cmd[20];
     char prog[MAXBYTES];
 } Task;
 
@@ -25,8 +25,8 @@ typedef struct entry {
     char prog[MAXBYTES];
 } Entry;
 
-int mysystem(char* prog, char* file) {
-    char **array = malloc(MAX_ARGS * sizeof(char*));
+int execute_u(char* prog, char* file) {
+    char **array = malloc(MAXARGS * sizeof(char*));
     char *prog_copy = strdup(prog);
     char *temp;
     int i = 0;
@@ -38,7 +38,7 @@ int mysystem(char* prog, char* file) {
     array[i] = NULL;
     free(prog_copy);
 
-    int res = 0;
+    int res;
 
     int fd = open(file, O_WRONLY | O_CREAT, 0777);
     if (fd == -1) {
@@ -73,7 +73,7 @@ int mysystem(char* prog, char* file) {
 }
 
 char **parsePipes(char *prog) {
-    char **array = malloc(MAX_PIPES * sizeof(char*));
+    char **array = malloc(MAXPIPES * sizeof(char*));
     char *prog_copy = strdup(prog);
     char *temp;
     int i = 0;
@@ -93,7 +93,7 @@ char **parsePipes(char *prog) {
 }
 
 char ***parseArgs(char **prog){
-    char ***matriz = malloc(MAX_PIPES * sizeof(char **));
+    char ***matrix = malloc(MAXPIPES * sizeof(char **));
     int i = 0;
     
     while (prog[i] != NULL) {
@@ -101,29 +101,30 @@ char ***parseArgs(char **prog){
         char *temp;
         int j = 0;
         
-        matriz[i] = malloc(MAX_ARGS * sizeof(char *));
+        matrix[i] = malloc(MAXARGS * sizeof(char *));
         
         while ((temp = strsep(&prog_copy, " ")) != NULL) {
             if (strcmp(temp, "") != 0) {
-				matriz[i][j++] = temp;
+				matrix[i][j++] = temp;
 			}
         }
 
-        matriz[i][j] = NULL;
+        matrix[i][j] = NULL;
         free(prog_copy);
         i++;
     }
-    matriz[i] = NULL;
+    
+    matrix[i] = NULL;
 
-    return matriz;
+    return matrix;
 }
 
-int pipeline(char *prog, char* file) {
-    char **sopa = parsePipes(prog);
-    char ***cmd = parseArgs(sopa);
+int execute_p(char *prog, char* file) {
+    char **array = parsePipes(prog);
+    char ***matrix = parseArgs(array);
 
     int len = 0;
-    while (cmd[len] != NULL) {
+    while (matrix[len] != NULL) {
         len++;
     }
 
@@ -149,7 +150,7 @@ int pipeline(char *prog, char* file) {
                 close(pipes[i][0]);
                 dup2(pipes[i][1], STDOUT_FILENO);
                 close(pipes[i][1]);
-                execvp(cmd[i][0], cmd[i]);
+                execvp(matrix[i][0], matrix[i]);
                 _exit(1);
             } else {
                 close(pipes[i][1]);
@@ -162,7 +163,7 @@ int pipeline(char *prog, char* file) {
             if (fork() == 0) {
                 dup2(pipes[i - 1][0], STDIN_FILENO);
                 close(pipes[i - 1][0]);
-                execvp(cmd[i][0], cmd[i]);
+                execvp(matrix[i][0], matrix[i]);
                 _exit(1);
             } else {
                 close(pipes[i - 1][0]);
@@ -179,7 +180,7 @@ int pipeline(char *prog, char* file) {
                 close(pipes[i - 1][0]);
                 dup2(pipes[i][1], STDOUT_FILENO);
                 close(pipes[i][1]);
-                execvp(cmd[i][0], cmd[i]);
+                execvp(matrix[i][0], matrix[i]);
                 _exit(1);
             } else {
                 close(pipes[i - 1][0]);

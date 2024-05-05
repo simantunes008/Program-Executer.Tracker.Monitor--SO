@@ -19,10 +19,8 @@ void execute(int time, char* prog, char* cmd) {
 	sprintf(s_pid, "tmp/%d", pid);
 
     if (mkfifo(s_pid, 0777) == -1) {
-        if (errno != EEXIST) {
-            perror("Could not create FIFO s_pid\n");
-            return;
-        }
+        perror("Could not create FIFO\n");
+        return;
     }
 
     write(fd1, &t, sizeof(t));
@@ -31,7 +29,7 @@ void execute(int time, char* prog, char* cmd) {
 
     int fd2 = open(s_pid, O_RDONLY);
     if (fd2 == -1) {
-		perror("Failed to open FIFO stats\n");
+		perror("Failed to open FIFO\n");
         return;
 	}
 
@@ -39,9 +37,9 @@ void execute(int time, char* prog, char* cmd) {
 
     read(fd2, &task_id, sizeof(int));
 
-    char info[20];
-	sprintf(info, "TASK %d Received\n", task_id);
-    write(STDOUT_FILENO, info, 20);
+    char s_task[20];
+	int bytes = sprintf(s_task, "TASK %d Received\n", task_id);
+    write(STDOUT_FILENO, s_task, bytes);
 
     close(fd2);
 
@@ -52,7 +50,7 @@ void execute(int time, char* prog, char* cmd) {
 void status() {
     int fd1 = open("tmp/stats", O_WRONLY);
     if (fd1 == -1) {
-		perror("Failed to open FIFO\n");
+		perror("Failed to open FIFO stats\n");
         return;
 	}
 
@@ -64,14 +62,12 @@ void status() {
     strcpy(t.cmd, "status");
     strcpy(t.prog, "");
 
-    char s_pid[20];
+    char s_pid[20]; 
 	sprintf(s_pid, "tmp/%d", pid);
 
     if (mkfifo(s_pid, 0777) == -1) {
-        if (errno != EEXIST) {
-            perror("Could not create fifo file\n");
-            return;
-        }
+        perror("Could not create fifo file\n");
+        return;
     }
 
     write(fd1, &t, sizeof(t));
@@ -87,18 +83,19 @@ void status() {
     int res;
     Entry e;
 
-    // printf("Completed\n");
     while ((res = read(fd2, &e, sizeof(e))) > 0) {
         if (e.texec) {
-            printf("%d %s %ld ms\n", e.pid, e.prog, e.texec); // ! Mudar este printf para um write
+            char s_entry[320];
+            int bytes = sprintf(s_entry, "%d %s %ld ms\n", e.pid, e.prog, e.texec);
+            write(STDOUT_FILENO, s_entry, bytes);
         } else {
-            printf("%d %s\n", e.pid, e.prog); // ! Mudar este printf para um write
+            char s_entry[320];
+            int bytes = sprintf(s_entry, "%d %s\n", e.pid, e.prog);
+            write(STDOUT_FILENO, s_entry, bytes);
         }
-	    
     }
 
     close(fd2);
-
     unlink(s_pid);
 }
 
@@ -107,12 +104,12 @@ int main(int argc, char ** argv) {
 
     if (argc == 1) {
 		printf("Invalid Input\n");
-		return 0;
+		return 1;
 	}
 
 	if (mkfifo("tmp/stats", 0777) == -1) {
         if (errno != EEXIST) {
-            perror("Could not create fifo file\n");
+            perror("Could not create FIFO stats\n");  // ! Verifica se o FIFO já foi criado
             return 1;
         }
     }
@@ -123,7 +120,6 @@ int main(int argc, char ** argv) {
         
         if (!strcmp(argv[3], "-u") || !strcmp(argv[3], "-p")) {
             execute(atoi(argv[2]), argv[4], cmd);
-
         } else {
             printf("Invalid option\n");
         }
@@ -131,9 +127,8 @@ int main(int argc, char ** argv) {
     } else if (!strcmp(argv[1], "status") && argc == 2) {
         status();
 
-
     } else {
-        printf("Invalid command name or count.\n");
+        printf("Invalid command name or count\n");
     }
 
     return 0;

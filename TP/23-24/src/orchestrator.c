@@ -4,8 +4,8 @@
 
 void fWriter(int pipe) {
     int fd = open("history.bin", O_CREAT | O_APPEND | O_WRONLY, 0777);
-	if(fd == -1) {
-        perror("Failed to open file!\n");
+	if (fd == -1) {
+        perror("Failed to open history file\n");
         return;
     }
 
@@ -18,27 +18,21 @@ void fWriter(int pipe) {
 }
 
 
-void executer(int pipe, int pipe2, char* folder) {
+void executer(int pipe1, int pipe2, char* folder) {
     int res;
     Task t;
 
-    while ((res = read(pipe, &t, sizeof(t))) > 0) {
+    while ((res = read(pipe1, &t, sizeof(t))) > 0) {
 
         struct timeval start, end;
 
         char out_file[20];
         sprintf(out_file, "%s/%d.txt", folder, t.pid);
 
-        if (!strcmp(t.cmd, "execute -u")) {
-            gettimeofday(&start, NULL);
-            mysystem(t.prog, out_file);
-            gettimeofday(&end, NULL);
-        } 
-        if (!strcmp(t.cmd, "execute -p")) {
-            gettimeofday(&start, NULL);
-            pipeline(t.prog, out_file);
-            gettimeofday(&end, NULL);
-        }
+        gettimeofday(&start, NULL);
+        if (!strcmp(t.cmd, "execute -u")) execute_u(t.prog, out_file);
+        else execute_p(t.prog, out_file);
+        gettimeofday(&end, NULL);
 
         long int texec = (end.tv_sec - start.tv_sec) * 1000 + (end.tv_usec - start.tv_usec) / 1000;
 
@@ -49,63 +43,56 @@ void executer(int pipe, int pipe2, char* folder) {
 
         write(pipe2, &e, sizeof(e));
 
-        int massa = open("tmp/stats", O_WRONLY); // ! Mudar o nome deste descritor
-        if (massa == -1) {
-	    	perror("Failed to open stats FIFO\n");
+        int fd = open("tmp/stats", O_WRONLY);
+        if (fd == -1) {
+	    	perror("Failed to open FIFO stats\n");
+            return;
 	    }
 
-        write(massa, &t, sizeof(t));
-
+        write(fd, &t, sizeof(t));
     }
 }
 
 
-void manager(int pipes[2], char* folder, int max_parallel_tasks) {
+void handler(int pipes[2], char* folder, int max_parallel_tasks) {
 
     mkdir(folder, 0777);
 
-    int pipe_fd1[2];
-
-    if (pipe(pipe_fd1) == -1){
-		perror("Failed to create pipe to file writer!\n");
+    int writer_pipe[2];
+    if (pipe(writer_pipe) == -1){
+		perror("Failed to create pipe to file writer\n");
         return;
 	}
 
     if (fork() == 0) {
-        close(pipe_fd1[1]);
-		fWriter(pipe_fd1[0]);
+        close(writer_pipe[1]);
+		fWriter(writer_pipe[0]);
     }
 
-    int child_pipe[2];
+    int queue_pipe[2];
 
-    if (pipe(child_pipe) == -1) {
-        perror("Failed to create pipe for child processes!\n");
+    if (pipe(queue_pipe) == -1) {
+        perror("Failed to create pipe to child processes\n");
         return;
     }
 
     for (int i = 0; i < max_parallel_tasks; i++) {
         if (fork() == 0) {
-            close(child_pipe[1]);
-            executer(child_pipe[0], pipe_fd1[1], folder);
+            close(queue_pipe[1]);
+            executer(queue_pipe[0], writer_pipe[1], folder);
         }
     }
 
-    close(child_pipe[0]);
-    close(pipe_fd1[0]);
+    close(queue_pipe[0]);
+    close(writer_pipe[0]);
 
     int res;
     Task t;
 
     while ((res = read(pipes[0], &t, sizeof(t))) > 0) {
         t.time -= QUANTUM;
-
-        if (t.time <= 0) {
-            write(child_pipe[1], &t, sizeof(t));
-
-        } else {
-            write(pipes[1], &t, sizeof(t));
-
-        }
+        if (t.time <= 0) write(queue_pipe[1], &t, sizeof(t));
+        else write(pipes[1], &t, sizeof(t));
     }
 }
 
@@ -114,7 +101,7 @@ int main(int argc, char ** argv) {
 
     if (mkfifo("tmp/stats", 0777) == -1) {
         if (errno != EEXIST) {
-            perror("Could not create fifo file\n");
+            perror("Could not create FIFO stats\n");  // ! Verifica se o FIFO já foi criado
             return 1;
         }
     }
@@ -122,7 +109,7 @@ int main(int argc, char ** argv) {
     int child_pipe[2];
 
     if (pipe(child_pipe) == -1){
-		perror("Failed to create pipe to file writer!\n");
+		perror("Failed to create pipe to handler\n");
         return 1;
 	}
 
@@ -130,11 +117,10 @@ int main(int argc, char ** argv) {
 
     if (argc == 3 && parallel_tasks > 0) {
         if (fork() == 0) {
-            manager(child_pipe, argv[1], parallel_tasks);
-
+            handler(child_pipe, argv[1], parallel_tasks);
         }
     } else {
-        printf("Invalid command name or count.\n");
+        printf("Invalid command name or count\n");
     }
 
     close(child_pipe[0]);
@@ -158,21 +144,22 @@ int main(int argc, char ** argv) {
     Task t;
 
     while ((res = read(fd1, &t, sizeof(t))) > 0) {
+
+        if (g_hash_table_contains(pending_tasks, GINT_TO_POINTER(t.pid))) {
+            g_hash_table_remove(pending_tasks, GINT_TO_POINTER(t.pid));
+            continue;
+        }
+
+        char s_pid[20];
+        sprintf(s_pid, "tmp/%d", t.pid);
+
+        int fd3 = open(s_pid, O_WRONLY);
+        if (fd3 == -1) {
+    	    perror("Failed to open FIFO\n");
+            return 1;
+    	}
     
         if (!strcmp(t.cmd, "execute -u") || !strcmp(t.cmd, "execute -p")) {
-
-            if (g_hash_table_contains(pending_tasks, GINT_TO_POINTER(t.pid))) {
-                g_hash_table_remove(pending_tasks, GINT_TO_POINTER(t.pid));
-                continue;
-            }
-
-            char s_pid[20];
-            sprintf(s_pid, "tmp/%d", t.pid);
-
-            int fd2 = open(s_pid, O_WRONLY);
-            if (fd2 == -1) {
-    	        perror("Failed to open s_pid FIFO\n");
-    	    }
 
             Entry *e = malloc(sizeof(struct entry));
             e -> pid = t.pid;
@@ -181,24 +168,10 @@ int main(int argc, char ** argv) {
 
             g_hash_table_insert(pending_tasks, GINT_TO_POINTER(e -> pid), e);
 
-            write(fd2, &t.pid, sizeof(int));
-
-            close(fd2);
-            unlink(s_pid);
-
+            write(fd3, &t.pid, sizeof(int));
             write(child_pipe[1], &t, sizeof(t));
 
         } else if (!strcmp(t.cmd, "status")) {
-
-            char s_pid[20];
-
-	        sprintf(s_pid, "tmp/%d", t.pid);
-
-            int massa = open(s_pid, O_WRONLY); // ! Mudar o nome deste descritor
-            if (massa == -1) {
-	        	perror("Failed to open FIFO\n");
-                return 1;
-	        }
 
             GHashTableIter iter;
     	    gpointer key, value;
@@ -206,25 +179,26 @@ int main(int argc, char ** argv) {
             g_hash_table_iter_init(&iter, pending_tasks);
 
             while (g_hash_table_iter_next(&iter, &key, &value)) {
-        	    Entry *sopa = (Entry *)value;
-                write(massa, sopa, sizeof(struct entry));
+        	    Entry *e = (Entry *)value;
+                write(fd3, e, sizeof(struct entry));
     	    }
             
-            int sopa = open("history.bin", O_RDONLY, 0777); // ! Mudar o nome deste descritor
-	        if(sopa == -1) {
-                perror("Failed to open file exec stats!\n");
+            int history_fd = open("history.bin", O_RDONLY, 0777);
+	        if (history_fd == -1) {
+                perror("Failed to open history file\n");
+                return 1;
             }
 
             int res;
             Entry e;
 
-            while ((res = read(sopa, &e, sizeof(e))) > 0) {
-                write(massa, &e, sizeof(e));
+            while ((res = read(history_fd, &e, sizeof(e))) > 0) {
+                write(fd3, &e, sizeof(e));
             }
-
-            close(massa);
-            unlink(s_pid);
         }
+
+        close(fd3);
+        unlink(s_pid);
     }
 
     return 0;
