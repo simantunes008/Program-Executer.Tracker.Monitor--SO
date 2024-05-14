@@ -1,7 +1,3 @@
-//
-// Created by simao on 14-04-2023.
-//
-
 #include "../includes/includes.h"
 
 int fd_DEFAULT, fd_STATUS, fd_CS, fd_SC;

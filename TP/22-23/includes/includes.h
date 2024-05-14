@@ -1,7 +1,3 @@
-//
-// Created by simao on 14-04-2023.
-//
-
 #ifndef INC_034_INCLUDES_H
 #define INC_034_INCLUDES_H
 
