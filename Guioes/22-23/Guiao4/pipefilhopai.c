@@ -1,4 +1,7 @@
-#include "pipefilhopai.h"
+#include <stdio.h>
+#include <sys/wait.h>
+#include <fcntl.h> /* O_RDONLY, O_WRONLY, O_CREAT, O_* */
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
 
 /* lsof -p PID */
 

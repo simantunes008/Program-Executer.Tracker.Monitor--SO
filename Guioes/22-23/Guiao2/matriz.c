@@ -1,4 +1,11 @@
-#include "matriz.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
+#include <sys/wait.h> /* chamadas wait*() e macros relacionadas */
+
+#define M 16
+#define N 32
 
 int main(int argc, char * argv[]) {
     if (argc == 1) return -1;

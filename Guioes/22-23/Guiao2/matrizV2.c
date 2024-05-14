@@ -1,4 +1,11 @@
-#include "matrizV2.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
+#include <sys/wait.h> /* chamadas wait*() e macros relacionadas */
+
+#define M 4
+#define N 8
 
 /* Podem cagar nisto */
 void imprimeMatriz(int m, int n, int matriz[m][n]) {

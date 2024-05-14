@@ -7,7 +7,10 @@
 /** execvp("ls", ls_argv);                   **/
 /**********************************************/
 
-#include "execlsson.h"
+#include <stdio.h>
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
+#include <sys/wait.h> /* chamadas wait*() e macros relacionadas */
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
 
 int main() {
     printf("before exec\n");

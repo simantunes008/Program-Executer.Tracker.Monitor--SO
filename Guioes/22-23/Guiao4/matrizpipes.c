@@ -1,4 +1,12 @@
-#include "matrizpipes.h"
+#include <stdlib.h>
+#include <time.h>
+#include <stdio.h>
+#include <sys/wait.h>
+#include <fcntl.h> /* O_RDONLY, O_WRONLY, O_CREAT, O_* */
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
+
+#define M 4
+#define N 8
 
 void printArray(int* array, int lenght) {
     int i = 0;

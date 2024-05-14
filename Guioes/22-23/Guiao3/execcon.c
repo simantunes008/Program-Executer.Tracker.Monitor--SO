@@ -1,4 +1,7 @@
-#include "execcon.h"
+#include <stdio.h>
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
+#include <sys/wait.h> /* chamadas wait*() e macros relacionadas */
+#include <unistd.h> /* chamadas ao sistema: defs e decls essenciais */
 
 int main(int argc, char * argv[]) {
     if (argc == 1) return -1;
