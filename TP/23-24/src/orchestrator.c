@@ -18,11 +18,11 @@ void fWriter(int pipe) {
 }
 
 
-void executer(int pipe1, int pipe2, char* folder) {
+void executer(int ready_queue, int pipe, char* folder) {
     int res;
     Task t;
 
-    while ((res = read(pipe1, &t, sizeof(t))) > 0) {
+    while ((res = read(ready_queue, &t, sizeof(t))) > 0) {
 
         struct timeval start, end;
 
@@ -41,7 +41,7 @@ void executer(int pipe1, int pipe2, char* folder) {
         e.texec = texec;
         strcpy(e.prog, t.prog);
 
-        write(pipe2, &e, sizeof(e));
+        write(pipe, &e, sizeof(e));
 
         int fd = open("tmp/stats", O_WRONLY);
         if (fd == -1) {
@@ -54,7 +54,7 @@ void executer(int pipe1, int pipe2, char* folder) {
 }
 
 
-void handler(int pipes[2], char* folder, int max_parallel_tasks) {
+void scheduler(int job_queue[2], char* folder, int max_parallel_tasks) {
 
     mkdir(folder, 0777);
 
@@ -69,30 +69,30 @@ void handler(int pipes[2], char* folder, int max_parallel_tasks) {
 		fWriter(writer_pipe[0]);
     }
 
-    int queue_pipe[2];
+    int ready_queue[2];
 
-    if (pipe(queue_pipe) == -1) {
+    if (pipe(ready_queue) == -1) {
         perror("Failed to create pipe to child processes\n");
         return;
     }
 
     for (int i = 0; i < max_parallel_tasks; i++) {
         if (fork() == 0) {
-            close(queue_pipe[1]);
-            executer(queue_pipe[0], writer_pipe[1], folder);
+            close(ready_queue[1]);
+            executer(ready_queue[0], writer_pipe[1], folder);
         }
     }
 
-    close(queue_pipe[0]);
+    close(ready_queue[0]);
     close(writer_pipe[0]);
 
     int res;
     Task t;
 
-    while ((res = read(pipes[0], &t, sizeof(t))) > 0) {
+    while ((res = read(job_queue[0], &t, sizeof(t))) > 0) {
         t.time -= QUANTUM;
-        if (t.time <= 0) write(queue_pipe[1], &t, sizeof(t));
-        else write(pipes[1], &t, sizeof(t));
+        if (t.time <= 0) write(ready_queue[1], &t, sizeof(t));
+        else write(job_queue[1], &t, sizeof(t));
     }
 }
 
@@ -106,9 +106,9 @@ int main(int argc, char ** argv) {
         }
     }
 
-    int child_pipe[2];
+    int job_queue[2];
 
-    if (pipe(child_pipe) == -1){
+    if (pipe(job_queue) == -1){
 		perror("Failed to create pipe to handler\n");
         return 1;
 	}
@@ -117,13 +117,13 @@ int main(int argc, char ** argv) {
 
     if (argc == 3 && parallel_tasks > 0) {
         if (fork() == 0) {
-            handler(child_pipe, argv[1], parallel_tasks);
+            scheduler(job_queue, argv[1], parallel_tasks);
         }
     } else {
         printf("Invalid command name or count\n");
     }
 
-    close(child_pipe[0]);
+    close(job_queue[0]);
 
     GHashTable *pending_tasks = g_hash_table_new(g_direct_hash, g_direct_equal);
 
@@ -169,7 +169,7 @@ int main(int argc, char ** argv) {
             g_hash_table_insert(pending_tasks, GINT_TO_POINTER(e -> pid), e);
 
             write(fd3, &t.pid, sizeof(int));
-            write(child_pipe[1], &t, sizeof(t));
+            write(job_queue[1], &t, sizeof(t));
 
         } else if (!strcmp(t.cmd, "status")) {
 
